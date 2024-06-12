@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YouTube 视频下载器</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+        h1 {
+            margin-bottom: 20px;
+            font-size: 24px;
+            color: #333;
+        }
+        p, ul {
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #666;
+            line-height: 1.5;
+            text-align: left;
+        }
+        ul {
+            padding-left: 20px;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        .tooltip-icon {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            background-color: #ffc107;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 16px;
+            cursor: help;
+            position: absolute;
+            left: 120px;
+            top: 380px; /* 调整位置 */
+        }
+        .tooltip-icon::after {
+            content: attr(data-tooltip);
+            display: none;
+            position: absolute;
+            bottom: 125%; /* 调整位置 */
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 5px;
+            border-radius: 4px;
+            white-space: nowrap;
+            z-index: 1;
+        }
+        .tooltip-icon:hover::after {
+            display: block;
+        }
+        select {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            background-color: #28a745;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            width: 100%;
+        }
+        button.downloading {
+            background-color: #ffc107;
+            cursor: not-allowed;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button.downloading:hover {
+            background-color: #ffc107;
+        }
+        .message {
+            font-size: 16px;
+            margin-top: 20px;
+        }
+        .message.success {
+            color: #28a745;
+        }
+        .message.error {
+            color: #ffc107;
+        }
+    </style>
+    <script>
+        async function getItags() {
+            const url = document.getElementById('url').value;
+            if (!url) {
+                alert('请输入YouTube URL');
+                return;
+            }
+
+            try {
+                const response = await fetch('/get_itags', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url })
+                });
+
+                // if (response.ok) {
+                //     const data = await response.json();
+                //     const itags = data.itags;
+                //     const select = document.getElementById('itag');
+                //     select.innerHTML = '<option value="">最高分辨率</option>'; // 重置选择框
+                //     itags.forEach(itag => {
+                //         const option = document.createElement('option');
+                //         option.value = itag.itag;
+                //         option.text = `${itag.resolution} (${itag.mime_type})`;
+                //         select.appendChild(option);
+                //     });
+                // } else {
+                //     const error = await response.json();
+                //     alert('错误: ' + error.error);
+                // }
+            } catch (error) {
+                // alert('获取itag失败: ' + error.message);
+            }
+        }
+
+        async function downloadVideo() {
+            const url = document.getElementById('url').value;
+            const itag = document.getElementById('itag').value;
+            const button = document.querySelector('button.download-button');
+            if (!url) {
+                alert('请输入YouTube URL');
+                return;
+            }
+
+            button.textContent = '下载中';
+            button.classList.add('downloading');
+            button.disabled = true;
+            showMessage('');
+
+            try {
+                const response = await fetch('/download', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ url, itag: itag || null })
+                });
+
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const contentDisposition = response.headers.get('Content-Disposition');
+                    let filename = 'video.mp4';  // 默认文件名
+                    if (contentDisposition && contentDisposition.includes('filename*=')) {
+                        filename = contentDisposition.split('filename*=UTF-8\'\'')[1].replace(/"/g, '');
+                    }
+                    const downloadUrl = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = decodeURIComponent(filename);
+                    document.body.appendChild(a);
+                    a.click();
+                    a.remove();
+                    message.textContent = '下载完成！';
+
+                } else {
+                    const error = await response.json();
+                    console.log('this is else');
+                    showMessage('下载失败！', 'error');
+                }
+            } catch (error) {
+                // alert('下载失败: ' + error.message);
+                console.log('this is catch');
+                showMessage('下载失败！', 'error');
+            } finally {
+                button.textContent = '下载';
+                button.classList.remove('downloading');
+                button.disabled = false;
+            }
+        }
+
+        function showMessage(message, type) {
+            const messageElement = document.getElementById('message');
+            messageElement.textContent = message;
+            messageElement.className = 'message ' + (type === 'error' ? 'error' : 'success');
+        }
+
+        function showTooltipIcon() {
+            const select = document.getElementById('itag');
+            const tooltipIcon = document.querySelector('.tooltip-icon');
+            tooltipIcon.style.display = select.value === '' ? 'inline-block' : 'none';
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlInput = document.getElementById('url');
+            urlInput.addEventListener('input', function() {
+                if (urlInput.value) {
+                    getItags();
+                }
+            });
+            showTooltipIcon(); // 初始化时检查选择项
+            document.getElementById('itag').addEventListener('change', showTooltipIcon);
+        });
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>YouTube 视频下载器</h1>
+        <p>欢迎使用YouTube视频下载器！</p>
+        <p>使用方法：</p>
+        <ul>
+            <li>在输入框中输入您要下载的YouTube视频链接。</li>
+            <li>从下拉菜单中选择您想要下载的格式和分辨率。</li>
+            <li>点击“下载”按钮，开始下载视频。</li>
+        </ul>
+        <p>提示：当选择“最高分辨率”时，视频通常将以720P下载（1080P视频无音频）。</p>
+        <input type="text" id="url" placeholder="输入YouTube URL">
+        <select id="itag">
+            <option value="">最高分辨率</option>
+            <option value="18">360p MP4</option>
+            <option value="22">720p MP4</option>
+            <option value="137">1080p 视频流（无音频）</option>
+            <option value="140">音频流（m4a）</option>
+        </select>
+        <!-- <span class="tooltip-icon" data-tooltip="通常为720P">i</span> !-->
+        <button class="download-button" onclick="downloadVideo()">下载</button>
+        <p id="message" class="message"></p>
+    </div>
+</body>
+</html>
